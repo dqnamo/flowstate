@@ -32,7 +32,7 @@ function NewProjectForm() {
   }, []);
 
   const createProject = async () => {
-    if (!user || isSubmitting) {
+    if (!user || isSubmitting || !name.trim()) {
       return;
     }
 
@@ -69,7 +69,7 @@ function NewProjectForm() {
   };
 
   return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden p-4">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-grayscale-1 p-4">
       <div className="pointer-events-none absolute inset-0 z-0">
         <DitheredWaves
           height="100%"
@@ -131,9 +131,10 @@ function NewProjectForm() {
         {error ? (
           <p className="px-3 text-xs text-grayscale-10">{error}</p>
         ) : null}
-        <div className="flex justify-between p-3">
+        <div className="flex justify-end gap-2 p-3">
           <Button
             type="button"
+            variant="secondary"
             disabled={isSubmitting}
             onClick={() => router.push("/app")}
           >
@@ -141,9 +142,18 @@ function NewProjectForm() {
           </Button>
           <Button type="submit" disabled={isSubmitting || !name.trim()}>
             {isSubmitting ? "Next..." : "Next"}
+            <WizardShortcutBadge>↵</WizardShortcutBadge>
           </Button>
         </div>
       </form>
     </main>
+  );
+}
+
+function WizardShortcutBadge({ children }: { children: string }) {
+  return (
+    <kbd className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-[4px] bg-grayscale-11 px-1 font-mono text-xs leading-none text-grayscale-1">
+      {children}
+    </kbd>
   );
 }

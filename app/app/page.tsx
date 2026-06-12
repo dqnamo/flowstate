@@ -81,10 +81,11 @@ function ProjectsHome() {
   );
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 p-4">
-      <h1 className="text-center text-xl font-medium text-grayscale-12">
-        Here is your list of projects
-      </h1>
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-grayscale-1 p-4">
+      <div className="flex flex-col items-center gap-1 text-center">
+        <h1 className="text-xl font-medium text-grayscale-12">Your projects</h1>
+        <p className="text-sm text-grayscale-10">Pick up where you left off.</p>
+      </div>
 
       {isLoading ? (
         <p className="text-center text-sm text-grayscale-10">Loading...</p>

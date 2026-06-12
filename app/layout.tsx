@@ -25,7 +25,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetBrainsMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${jetBrainsMono.variable} h-full bg-grayscale-1 antialiased`}
     >
       <body className="min-h-full flex flex-col bg-grayscale-1">
         {children}

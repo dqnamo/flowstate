@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useId, useState } from "react";
 import { Button } from "@/components/Button";
+import CornerCubes from "@/components/CornerCubes";
 import { Input } from "@/components/Input";
 import db from "@/lib/db";
 
@@ -50,11 +51,19 @@ export default function AuthGate({ children }: AuthGateProps) {
   };
 
   if (isLoading) {
-    return <main className="p-4">Loading...</main>;
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-grayscale-1 p-4">
+        Loading...
+      </main>
+    );
   }
 
   if (authError) {
-    return <main className="p-4">{authError.message}</main>;
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-grayscale-1 p-4">
+        {authError.message}
+      </main>
+    );
   }
 
   if (user) {
@@ -62,15 +71,29 @@ export default function AuthGate({ children }: AuthGateProps) {
   }
 
   return (
-    <main className="flex min-h-full items-center justify-center p-4">
+    <main className="flex min-h-dvh items-center justify-center bg-grayscale-1 p-4">
       <form
-        className="flex w-full max-w-sm flex-col gap-3 rounded-[12px] border border-grayscale-4 bg-white p-3"
+        className="relative flex w-full max-w-sm flex-col gap-3 rounded-[8px] border border-grayscale-4 bg-white p-3"
         onSubmit={(event) => {
           event.preventDefault();
           void submitAuth();
         }}
       >
-        <h1 className="text-lg font-medium text-grayscale-12">Sign in</h1>
+        <CornerCubes
+          placement="outside"
+          spacing={3}
+          translate={12}
+          size={8}
+          color="var(--color-grayscale-6)"
+          className="rounded-[2px]"
+          active={true}
+        />
+        <div>
+          <h1 className="text-lg font-medium text-grayscale-12">Sign in</h1>
+          <p className="text-xs text-grayscale-10">
+            Enter your email to receive a magic code.
+          </p>
+        </div>
         <label
           htmlFor={emailId}
           className="flex flex-col gap-1 text-xs text-grayscale-11"

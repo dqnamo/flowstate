@@ -21,7 +21,7 @@ function VercelMark() {
 
 export default function Home() {
   return (
-    <div className="relative h-dvh overflow-hidden">
+    <div className="relative h-dvh overflow-hidden bg-grayscale-1">
       <div className="pointer-events-none fixed inset-0 z-0">
         <DitheredWaves height="100%" />
       </div>

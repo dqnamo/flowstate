@@ -195,8 +195,8 @@ function ProjectView({ mode }: { mode: WorkspaceMode }) {
     <main
       className={
         mode === "run" || mode === "new-run"
-          ? "flex h-dvh min-h-0 flex-col overflow-hidden"
-          : "flex min-h-full flex-col"
+          ? "flex h-dvh min-h-0 flex-col overflow-hidden bg-grayscale-1"
+          : "flex min-h-full flex-col bg-grayscale-1"
       }
     >
       {project ? (
@@ -249,7 +249,7 @@ function SetupWizardShell({
   children: ReactNode;
 }) {
   return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden p-4">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-grayscale-1 p-4">
       <div className="pointer-events-none absolute inset-0 z-0">
         <DitheredWaves
           height="100%"
@@ -356,7 +356,12 @@ function ProjectHeader({
         <p className="text-xs text-grayscale-10">{branch}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <NavButton href={newRunHref} label="New run" shortcut="N" />
+        <NavButton
+          href={newRunHref}
+          label="New run"
+          shortcut="N"
+          variant="primary"
+        />
         <NavButton href={previousHref} label="Previous" shortcut="K" />
         <NavButton href={nextHref} label="Next" shortcut="L" />
       </div>
@@ -368,14 +373,17 @@ function NavButton({
   href,
   label,
   shortcut,
+  variant = "secondary",
 }: {
   href?: string;
   label: string;
   shortcut: string;
+  variant?: "primary" | "secondary";
 }) {
   const content = (
     <Button
       type="button"
+      variant={variant}
       disabled={!href}
       className={["py-1.5", !href ? "opacity-40 hover:scale-100" : ""].join(
         " ",
@@ -591,7 +599,7 @@ function RepositoryPicker({
   };
 
   useHotkeys(
-    "n",
+    "enter",
     () => {
       void saveRepository();
     },
@@ -617,6 +625,18 @@ function RepositoryPicker({
           onChange={(event) =>
             setSelectedRepositoryId(Number(event.target.value))
           }
+          onKeyDown={(event) => {
+            if (
+              event.key !== "Enter" ||
+              !selectedRepositoryId ||
+              isSubmitting
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+            void saveRepository();
+          }}
         >
           <option value="">Choose repo</option>
           {repositories.map((repository) => (
@@ -627,9 +647,10 @@ function RepositoryPicker({
         </select>
       ) : null}
       {error ? <p className="text-xs text-grayscale-10">{error}</p> : null}
-      <div className="flex justify-between">
+      <div className="flex justify-end gap-2">
         <Button
           type="button"
+          variant="secondary"
           disabled={isSubmitting}
           onClick={() => router.back()}
         >
@@ -643,7 +664,7 @@ function RepositoryPicker({
           }}
         >
           {isSubmitting ? "Next..." : "Next"}
-          <ShortcutBadge>N</ShortcutBadge>
+          <ShortcutBadge>↵</ShortcutBadge>
         </Button>
       </div>
     </section>
@@ -744,6 +765,7 @@ function AgentSetup({
         <div className="flex justify-end">
           <Button
             type="button"
+            variant="secondary"
             disabled={isStarting}
             onClick={() => {
               void startSetup();
@@ -799,9 +821,14 @@ function PromptBox({
 }) {
   const router = useRouter();
   const promptId = useId();
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const [prompt, setPrompt] = useState("");
   const [error, setError] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    promptRef.current?.focus({ preventScroll: true });
+  }, []);
 
   const submitRun = async () => {
     if (!token || !prompt.trim() || isSubmitting) {
@@ -898,6 +925,7 @@ function PromptBox({
           </div>
           <div className="group relative flex w-full">
             <textarea
+              ref={promptRef}
               id={promptId}
               value={prompt}
               disabled={isSubmitting}
@@ -1298,12 +1326,9 @@ function RunReview({
   };
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden border border-grayscale-4 bg-white md:flex-row">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-grayscale-1 md:flex-row">
       <aside
-        className={cn(
-          "hidden shrink-0 overflow-hidden border-r border-grayscale-4 bg-white transition-[width] duration-200 ease-out md:flex md:flex-col",
-          isRunSidebarCollapsed && "border-r-0",
-        )}
+        className="hidden shrink-0 overflow-hidden bg-grayscale-1 transition-[width] duration-200 ease-out md:flex md:flex-col"
         style={{ width: isRunSidebarCollapsed ? 0 : runSidebarSize }}
       >
         <div
@@ -1363,17 +1388,18 @@ function RunReview({
         )}
       />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-grayscale-1">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-grayscale-4 bg-white p-3">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-grayscale-4 bg-grayscale-1 p-3">
           <div className="flex min-w-0 items-center gap-2">
             {isRunSidebarCollapsed ? (
-              <button
+              <Button
                 type="button"
-                className="shrink-0 bg-grayscale-2 px-2 py-1 text-xs text-grayscale-12 hover:bg-grayscale-3"
+                variant="secondary"
+                className="shrink-0 px-2 py-1 text-xs"
                 onClick={toggleRunSidebar}
               >
                 Runs
                 <ShortcutBadge>⌘B</ShortcutBadge>
-              </button>
+              </Button>
             ) : null}
             <div className="min-w-0">
               <h2 className="text-sm font-medium text-grayscale-12">
@@ -1389,17 +1415,18 @@ function RunReview({
             </div>
           </div>
           {isPreviewCollapsed ? (
-            <button
+            <Button
               type="button"
-              className="bg-grayscale-2 px-2 py-1 text-xs text-grayscale-12 hover:bg-grayscale-3"
+              variant="secondary"
+              className="px-2 py-1 text-xs"
               onClick={togglePreview}
             >
               Preview
               <ShortcutBadge>P</ShortcutBadge>
-            </button>
+            </Button>
           ) : null}
         </div>
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain bg-grayscale-1">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
             {reviewError ? (
               <p className="border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -1477,7 +1504,7 @@ function RunReview({
         ].join(" ")}
       />
       <aside
-        className="hidden shrink-0 overflow-hidden border-l border-grayscale-4 bg-white transition-[width] duration-300 ease-out md:flex md:flex-col"
+        className="hidden shrink-0 overflow-hidden bg-grayscale-1 transition-[width] duration-300 ease-out md:flex md:flex-col"
         style={{ width: isPreviewCollapsed ? 0 : previewSize }}
       >
         <div
@@ -1521,7 +1548,7 @@ function RunReview({
           </div>
         </div>
       </aside>
-      <div className="flex border-t border-grayscale-4 bg-white md:hidden">
+      <div className="flex border-t border-grayscale-4 bg-grayscale-1 md:hidden">
         {previewUrl ? (
           <iframe
             title="Preview"
@@ -1682,6 +1709,7 @@ function ChangeReviewCard({
           </div>
           <Button
             type="button"
+            variant="secondary"
             disabled={resolved || isPending}
             className={resolved ? "opacity-40 hover:scale-100" : undefined}
             onClick={onReview}
@@ -1886,27 +1914,42 @@ type TimelineEventSummary = {
 };
 
 const timelineToneClasses: Record<TimelineTone, string> = {
-  neutral: "bg-grayscale-3 text-grayscale-11",
-  accent: "bg-accent-3 text-accent-11",
-  success: "bg-emerald-50 text-emerald-700",
-  warning: "bg-amber-50 text-amber-700",
-  danger: "bg-red-50 text-red-700",
+  neutral: "text-grayscale-10",
+  accent: "text-accent-11",
+  success: "text-emerald-700",
+  warning: "text-amber-700",
+  danger: "text-red-700",
+};
+
+const timelineAccentClasses: Record<TimelineTone, string> = {
+  neutral: "bg-grayscale-6",
+  accent: "bg-accent-8",
+  success: "bg-emerald-400",
+  warning: "bg-amber-400",
+  danger: "bg-red-400",
 };
 
 function TimelineEvent({ event }: { event: RunEvent }) {
   const summary = describeRunEvent(event);
 
   return (
-    <article className="border border-grayscale-4 bg-white">
-      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2 border-b border-grayscale-4 px-3 py-2">
-        <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <article className="relative py-3 pl-5 pr-2">
+      <span
+        aria-hidden="true"
+        className={[
+          "absolute left-1 top-4 h-[calc(100%-2rem)] w-px rounded-full opacity-70",
+          timelineAccentClasses[summary.tone],
+        ].join(" ")}
+      />
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
             <h3 className="text-sm font-medium text-grayscale-12">
               {summary.title}
             </h3>
             <span
               className={[
-                "px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase",
+                "font-mono text-[10px] font-semibold uppercase",
                 timelineToneClasses[summary.tone],
               ].join(" ")}
             >
@@ -1928,18 +1971,18 @@ function TimelineEvent({ event }: { event: RunEvent }) {
           #{event.sequence ?? 0}
         </span>
       </div>
-      <div className="flex flex-col gap-2 px-3 py-2">
+      <div className="mt-2 flex flex-col gap-2">
         {summary.body ? (
           <p className="whitespace-pre-wrap break-words text-sm leading-6 text-grayscale-12">
             {summary.body}
           </p>
         ) : null}
         <DetailGrid items={summary.details} />
-        <details className="group bg-grayscale-2">
-          <summary className="cursor-pointer px-2 py-1.5 text-xs font-medium text-grayscale-11">
+        <details>
+          <summary className="inline-flex cursor-pointer items-center text-xs font-medium text-grayscale-10 hover:text-grayscale-12">
             Payload
           </summary>
-          <pre className="max-h-64 overflow-auto p-2 text-[11px] leading-5 text-grayscale-12">
+          <pre className="mt-2 max-h-64 overflow-auto text-[11px] leading-5 text-grayscale-12">
             <code>{formatPayload(event.payload ?? event.raw ?? "")}</code>
           </pre>
         </details>

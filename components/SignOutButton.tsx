@@ -7,6 +7,7 @@ export default function SignOutButton() {
   return (
     <Button
       type="button"
+      variant="secondary"
       onClick={() => {
         void db.auth.signOut();
       }}

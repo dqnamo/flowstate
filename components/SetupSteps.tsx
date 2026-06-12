@@ -4,7 +4,7 @@ export default function SetupSteps({ activeStep }: { activeStep: number }) {
   const currentStep = Math.min(Math.max(activeStep, 1), STEP_COUNT);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-fit items-center gap-1">
       <span className="sr-only">
         Setup progress, step {currentStep} of {STEP_COUNT}
       </span>
@@ -18,11 +18,11 @@ export default function SetupSteps({ activeStep }: { activeStep: number }) {
             key={stepNumber}
             aria-hidden="true"
             className={[
-              "h-2 flex-1 rounded-full transition-colors",
+              "h-2 w-3 rounded-full transition-colors",
               isActive
-                ? "bg-grayscale-12"
+                ? "bg-accent-9"
                 : isDone
-                  ? "bg-accent-9"
+                  ? "bg-grayscale-12"
                   : "bg-grayscale-4",
             ].join(" ")}
           />
