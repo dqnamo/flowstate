@@ -14,7 +14,6 @@ import CornerCubes from "@/components/CornerCubes";
 import DitheredWaves from "@/components/DitheredWaves";
 import { InputBrackets } from "@/components/Input";
 import SetupSteps from "@/components/SetupSteps";
-import SignOutButton from "@/components/SignOutButton";
 import db from "@/lib/db";
 
 type WorkspaceMode = "overview" | "new-run" | "run";
@@ -250,7 +249,6 @@ function ProjectHeader({
       <div className="flex shrink-0 items-center gap-2">
         <NavButton href={previousHref} label="Previous" shortcut="←" />
         <NavButton href={nextHref} label="Next" shortcut="→" />
-        <SignOutButton />
       </div>
     </header>
   );

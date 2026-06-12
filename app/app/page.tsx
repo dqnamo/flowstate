@@ -3,7 +3,6 @@
 import Link from "next/link";
 import AuthGate from "@/components/AuthGate";
 import { Button } from "@/components/Button";
-import SignOutButton from "@/components/SignOutButton";
 import db from "@/lib/db";
 
 export default function AppPage() {
@@ -44,7 +43,6 @@ function ProjectsHome() {
           <Link href="/app/new">
             <Button type="button">New project</Button>
           </Link>
-          <SignOutButton />
         </div>
       </div>
 
