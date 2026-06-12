@@ -24,6 +24,17 @@ test("github state round trips and rejects tampering", async () => {
   assert.throws(() => verifyGithubState(`${signed}x`));
 });
 
+test("normalizes escaped github app private keys", async () => {
+  const { normalizePrivateKey } = await import("@/lib/server/github");
+
+  assert.equal(
+    normalizePrivateKey(
+      '"-----BEGIN PRIVATE KEY-----\\nabc123\\n-----END PRIVATE KEY-----"',
+    ),
+    "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----",
+  );
+});
+
 test("parses codex device auth output", () => {
   assert.deepEqual(
     parseCodexDeviceAuthOutput(
