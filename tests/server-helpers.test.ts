@@ -35,6 +35,17 @@ test("normalizes escaped github app private keys", async () => {
   );
 });
 
+test("normalizes single-line github app private keys", async () => {
+  const { normalizePrivateKey } = await import("@/lib/server/github");
+
+  assert.equal(
+    normalizePrivateKey(
+      "-----BEGIN PRIVATE KEY----- abc 123 -----END PRIVATE KEY-----",
+    ),
+    "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----",
+  );
+});
+
 test("parses codex device auth output", () => {
   assert.deepEqual(
     parseCodexDeviceAuthOutput(

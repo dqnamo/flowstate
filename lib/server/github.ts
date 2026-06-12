@@ -54,8 +54,20 @@ export async function listInstallationRepositories(installationId: string) {
   })) satisfies GithubRepository[];
 }
 
-export const normalizePrivateKey = (value: string) =>
-  value
+export function normalizePrivateKey(value: string) {
+  const normalized = value
     .trim()
     .replace(/^['"]|['"]$/g, "")
     .replace(/\\n/g, "\n");
+
+  const singleLinePem = normalized.match(
+    /^(-----BEGIN [^-]+-----)\s+(.+?)\s+(-----END [^-]+-----)$/,
+  );
+
+  if (!singleLinePem) {
+    return normalized;
+  }
+
+  const [, header, body, footer] = singleLinePem;
+  return `${header}\n${body.replace(/\s+/g, "")}\n${footer}`;
+}

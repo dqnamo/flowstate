@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useHotkeys } from "react-hotkeys-hook";
 import CornerBrackets from "@/components/CornerBrackets";
 
-const githubHref = "https://github.com/";
+const githubHref = "https://github.com/dqnamo/flowstate";
 const buttonRadiusPx = 8;
 const shortcutInsetPx = 6;
 const shortcutRadiusPx = Math.max(0, buttonRadiusPx - shortcutInsetPx + 2);

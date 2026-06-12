@@ -37,7 +37,8 @@ export default function Home() {
           software factory.
         </h1>
         <p className="text-sm text-balance text-grayscale-6">
-          Codex is a cloud software factory that allows you to code with agents.
+          Flowstate turns Codex into a personal cloud software factory for your
+          GitHub repos.
         </p>
         <LandingActions />
       </main>
