@@ -1,0 +1,58 @@
+@import "@radix-ui/colors/slate.css";
+@import "@radix-ui/colors/slate-dark.css";
+@import "@radix-ui/colors/indigo.css";
+@import "@radix-ui/colors/indigo-dark.css";
+
+@theme inline {
+  --color-slate-1: var(--slate-1);
+  --color-slate-2: var(--slate-2);
+  --color-slate-3: var(--slate-3);
+  --color-slate-4: var(--slate-4);
+  --color-slate-5: var(--slate-5);
+  --color-slate-6: var(--slate-6);
+  --color-slate-7: var(--slate-7);
+  --color-slate-8: var(--slate-8);
+  --color-slate-9: var(--slate-9);
+  --color-slate-10: var(--slate-10);
+  --color-slate-11: var(--slate-11);
+  --color-slate-12: var(--slate-12);
+
+  --color-indigo-1: var(--indigo-1);
+  --color-indigo-2: var(--indigo-2);
+  --color-indigo-3: var(--indigo-3);
+  --color-indigo-4: var(--indigo-4);
+  --color-indigo-5: var(--indigo-5);
+  --color-indigo-6: var(--indigo-6);
+  --color-indigo-7: var(--indigo-7);
+  --color-indigo-8: var(--indigo-8);
+  --color-indigo-9: var(--indigo-9);
+  --color-indigo-10: var(--indigo-10);
+  --color-indigo-11: var(--indigo-11);
+  --color-indigo-12: var(--indigo-12);
+
+  --color-grayscale-1: var(--slate-1);
+  --color-grayscale-2: var(--slate-2);
+  --color-grayscale-3: var(--slate-3);
+  --color-grayscale-4: var(--slate-4);
+  --color-grayscale-5: var(--slate-5);
+  --color-grayscale-6: var(--slate-6);
+  --color-grayscale-7: var(--slate-7);
+  --color-grayscale-8: var(--slate-8);
+  --color-grayscale-9: var(--slate-9);
+  --color-grayscale-10: var(--slate-10);
+  --color-grayscale-11: var(--slate-11);
+  --color-grayscale-12: var(--slate-12);
+
+  --color-accent-1: var(--indigo-1);
+  --color-accent-2: var(--indigo-2);
+  --color-accent-3: var(--indigo-3);
+  --color-accent-4: var(--indigo-4);
+  --color-accent-5: var(--indigo-5);
+  --color-accent-6: var(--indigo-6);
+  --color-accent-7: var(--indigo-7);
+  --color-accent-8: var(--indigo-8);
+  --color-accent-9: var(--indigo-9);
+  --color-accent-10: var(--indigo-10);
+  --color-accent-11: var(--indigo-11);
+  --color-accent-12: var(--indigo-12);
+}

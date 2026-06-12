@@ -1,0 +1,46 @@
+{
+  "name": "flowstate",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "check": "biome check --write .",
+    "format": "biome format --write .",
+    "instant:push-schema": "pnpx instant-cli@latest push schema",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.5.0",
+    "@instantdb/admin": "^1.0.48",
+    "@instantdb/react": "^1.0.48",
+    "@octokit/auth-app": "^8.2.0",
+    "@octokit/rest": "^22.0.1",
+    "@pierre/diffs": "1.2.10",
+    "@radix-ui/colors": "^3.0.0",
+    "@trigger.dev/sdk": "^4.4.6",
+    "clsx": "^2.1.1",
+    "e2b": "^2.29.0",
+    "next": "16.2.9",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-hotkeys-hook": "^5.3.2",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
+    "@tailwindcss/postcss": "^4",
+    "@trigger.dev/build": "^4.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "tailwindcss": "^4",
+    "trigger.dev": "^4.4.6",
+    "tsx": "^4.22.4",
+    "typescript": "^5"
+  }
+}
