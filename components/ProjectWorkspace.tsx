@@ -5,7 +5,11 @@ import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { FileDiff } from "@pierre/diffs/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  ReactNode,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   useCallback,
   useEffect,
@@ -863,17 +867,31 @@ function PromptBox({
     }
   };
 
-  useHotkeys(
-    "mod+enter",
-    () => {
-      void submitRun();
-    },
-    {
-      enabled: Boolean(prompt.trim()) && !isSubmitting,
-      enableOnFormTags: ["INPUT", "TEXTAREA"],
-      preventDefault: true,
-    },
-  );
+  const handlePromptKeyDown = (
+    event: ReactKeyboardEvent<HTMLTextAreaElement>,
+  ) => {
+    if (event.key !== "Enter" || event.nativeEvent.isComposing) {
+      return;
+    }
+
+    if (event.metaKey) {
+      event.preventDefault();
+      const textarea = event.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const nextPrompt = `${textarea.value.slice(0, start)}\n${textarea.value.slice(end)}`;
+
+      setPrompt(nextPrompt);
+      window.requestAnimationFrame(() => {
+        textarea.selectionStart = start + 1;
+        textarea.selectionEnd = start + 1;
+      });
+      return;
+    }
+
+    event.preventDefault();
+    void submitRun();
+  };
 
   return (
     <form
@@ -932,6 +950,7 @@ function PromptBox({
               placeholder="Ask Codex to change the app"
               className="min-h-32 w-full resize-none rounded-[8px] bg-grayscale-2 px-2 py-1.5 text-sm text-grayscale-12 outline-none transition-colors duration-150 placeholder:text-grayscale-10 focus:bg-grayscale-3"
               onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={handlePromptKeyDown}
             />
             <InputBrackets />
           </div>
@@ -942,7 +961,7 @@ function PromptBox({
         <div className="flex flex-row items-center justify-end p-3">
           <Button type="submit" disabled={!prompt.trim() || isSubmitting}>
             {isSubmitting ? "Starting..." : "Run Codex"}
-            <ShortcutBadge>⌘↵</ShortcutBadge>
+            <ShortcutBadge>↵</ShortcutBadge>
           </Button>
         </div>
       </div>
@@ -964,9 +983,8 @@ function RunReview({
   const router = useRouter();
   const changes = useMemo(() => run.codeChanges ?? [], [run.codeChanges]);
   const newRunHref = `/app/projects/${projectId}/runs/new`;
-  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
   const [previewSize, setPreviewSize] = useState(DEFAULT_PREVIEW_SIZE);
-  const [isRunSidebarCollapsed, setIsRunSidebarCollapsed] = useState(false);
+  const [isRunSidebarCollapsed, setIsRunSidebarCollapsed] = useState(true);
   const [runSidebarSize, setRunSidebarSize] = useState(
     DEFAULT_RUN_SIDEBAR_SIZE,
   );
@@ -977,6 +995,7 @@ function RunReview({
   const [reviewError, setReviewError] = useState<string>();
   const finalizingRunIdRef = useRef<string | undefined>(undefined);
   const commentRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const timelineScrollRef = useRef<HTMLDivElement | null>(null);
   const events = useMemo(
     () =>
       [...(run.events ?? [])].sort(
@@ -995,8 +1014,16 @@ function RunReview({
     run.previewBaseUrl && selectedChange?.previewPath
       ? `${run.previewBaseUrl}${selectedChange.previewPath}`
       : run.previewBaseUrl;
+  const hasPreview = Boolean(previewUrl);
+  const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(
+    () => !hasPreview,
+  );
   const selectedPreviewPath = selectedChange?.previewPath ?? "/";
-  const togglePreview = () => setIsPreviewCollapsed((collapsed) => !collapsed);
+  const previousPreviewRunIdRef = useRef(run.id);
+  const previousPreviewUrlRef = useRef<string | null | undefined>(previewUrl);
+  const togglePreview = useCallback(() => {
+    setIsPreviewCollapsed((collapsed) => !collapsed);
+  }, []);
   const toggleRunSidebar = useCallback(() => {
     setIsRunSidebarCollapsed((collapsed) => !collapsed);
   }, []);
@@ -1004,6 +1031,7 @@ function RunReview({
     ? changes.findIndex((change) => change.id === selectedChange.id)
     : -1;
   const resolvedChanges = changes.filter(isChangeResolved).length;
+  const runIsInProgress = isRunInProgressStatus(run.status);
   const isReviewFullyResolved =
     changes.length > 0 && resolvedChanges === changes.length;
   const focusChange = useCallback((changeId?: string) => {
@@ -1134,6 +1162,35 @@ function RunReview({
   );
 
   useEffect(() => {
+    if (previousPreviewRunIdRef.current !== run.id) {
+      previousPreviewRunIdRef.current = run.id;
+      previousPreviewUrlRef.current = previewUrl;
+      setIsPreviewCollapsed(!hasPreview);
+      return;
+    }
+
+    if (hasPreview && !previousPreviewUrlRef.current) {
+      setIsPreviewCollapsed(false);
+    }
+
+    previousPreviewUrlRef.current = previewUrl;
+  }, [hasPreview, previewUrl, run.id]);
+
+  useEffect(() => {
+    const timeline = timelineScrollRef.current;
+
+    if (!timeline || timelineItems.length === 0) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      timeline.scrollTop = timeline.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [timelineItems]);
+
+  useEffect(() => {
     if (
       !token ||
       run.status !== "ready_for_review" ||
@@ -1178,6 +1235,7 @@ function RunReview({
       togglePreview();
     },
     { preventDefault: true },
+    [togglePreview],
   );
 
   useHotkeys(
@@ -1344,14 +1402,15 @@ function RunReview({
                 {runs.length} total · ⌘1-9 opens · ⌘B toggles
               </p>
             </div>
-            <button
+            <Button
               type="button"
               aria-label="Collapse runs sidebar"
-              className="shrink-0 bg-grayscale-2 px-2 py-1 text-xs text-grayscale-12 hover:bg-grayscale-3"
+              variant="secondary"
+              className="shrink-0 px-2 py-1 text-xs"
               onClick={toggleRunSidebar}
             >
               ←<ShortcutBadge>⌘B</ShortcutBadge>
-            </button>
+            </Button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
@@ -1426,7 +1485,10 @@ function RunReview({
             </Button>
           ) : null}
         </div>
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain bg-grayscale-1">
+        <div
+          ref={timelineScrollRef}
+          className="min-h-0 flex-1 overflow-auto overscroll-contain bg-grayscale-1"
+        >
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
             {reviewError ? (
               <p className="border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -1472,12 +1534,22 @@ function RunReview({
                   ),
                 )}
               </div>
-            ) : (
-              <div className="border border-grayscale-4 bg-white p-3">
-                <p className="text-sm text-grayscale-12">No changes yet</p>
-                <p className="text-xs text-grayscale-10">
-                  Codex change groups will appear here when the run completes.
+            ) : runIsInProgress ? (
+              <div
+                className="flex min-h-48 flex-col items-center justify-center gap-3 text-center"
+                role="status"
+              >
+                <span
+                  className="h-5 w-5 animate-spin rounded-full border-2 border-grayscale-5 border-t-grayscale-12"
+                  aria-hidden="true"
+                />
+                <p className="text-sm text-grayscale-11">
+                  Spinning up sandbox and agent...
                 </p>
+              </div>
+            ) : (
+              <div className="py-12 text-center">
+                <p className="text-sm text-grayscale-12">No changes yet</p>
               </div>
             )}
           </div>
@@ -1516,7 +1588,7 @@ function RunReview({
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-grayscale-4 p-2">
             <div className="min-w-0">
               <h2 className="truncate text-xs font-medium text-grayscale-12">
-                {selectedPreviewPath}
+                {previewUrl ? selectedPreviewPath : "Preview"}
               </h2>
               {previewUrl ? (
                 <p className="truncate text-xs text-grayscale-10">
@@ -1524,14 +1596,15 @@ function RunReview({
                 </p>
               ) : null}
             </div>
-            <button
+            <Button
               type="button"
               aria-label="Collapse preview"
-              className="shrink-0 bg-grayscale-2 px-2 py-1 text-xs text-grayscale-12 hover:bg-grayscale-3"
+              variant="secondary"
+              className="shrink-0 px-2 py-1 text-xs"
               onClick={togglePreview}
             >
               ×<ShortcutBadge>P</ShortcutBadge>
-            </button>
+            </Button>
           </div>
           <div className="min-h-0 flex-1">
             {previewUrl ? (
@@ -1542,23 +1615,27 @@ function RunReview({
               />
             ) : (
               <p className="p-3 text-sm text-grayscale-10">
-                Preview not ready.
+                No preview running at the moment.
               </p>
             )}
           </div>
         </div>
       </aside>
-      <div className="flex border-t border-grayscale-4 bg-grayscale-1 md:hidden">
-        {previewUrl ? (
-          <iframe
-            title="Preview"
-            src={previewUrl}
-            className="h-[420px] w-full"
-          />
-        ) : (
-          <p className="p-3 text-sm text-grayscale-10">Preview not ready.</p>
-        )}
-      </div>
+      {!isPreviewCollapsed ? (
+        <div className="flex border-t border-grayscale-4 bg-grayscale-1 md:hidden">
+          {previewUrl ? (
+            <iframe
+              title="Preview"
+              src={previewUrl}
+              className="h-[420px] w-full"
+            />
+          ) : (
+            <p className="p-3 text-sm text-grayscale-10">
+              No preview running at the moment.
+            </p>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -1630,6 +1707,12 @@ function formatRunStatus(status?: string | null) {
   return status?.replaceAll("_", " ") ?? "unknown";
 }
 
+function isRunInProgressStatus(status?: string | null) {
+  return (
+    status === "queued" || status === "running" || status === "feedback_queued"
+  );
+}
+
 function getRunStatusDotClass(status?: string | null) {
   if (status === "failed" || status === "error") {
     return "bg-red-500";
@@ -1643,11 +1726,7 @@ function getRunStatusDotClass(status?: string | null) {
     return "bg-accent-9";
   }
 
-  if (
-    status === "queued" ||
-    status === "running" ||
-    status === "feedback_queued"
-  ) {
+  if (isRunInProgressStatus(status)) {
     return "bg-amber-500";
   }
 
