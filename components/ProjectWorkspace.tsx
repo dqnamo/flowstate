@@ -5,8 +5,15 @@ import type { FileDiffMetadata } from "@pierre/diffs/react";
 import { FileDiff } from "@pierre/diffs/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import type { PointerEvent as ReactPointerEvent } from "react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import AuthGate from "@/components/AuthGate";
 import { Button } from "@/components/Button";
@@ -14,6 +21,7 @@ import CornerCubes from "@/components/CornerCubes";
 import DitheredWaves from "@/components/DitheredWaves";
 import { InputBrackets } from "@/components/Input";
 import SetupSteps from "@/components/SetupSteps";
+import { cn } from "@/helpers/classname-helper";
 import db from "@/lib/db";
 
 type WorkspaceMode = "overview" | "new-run" | "run";
@@ -21,6 +29,21 @@ type WorkspaceMode = "overview" | "new-run" | "run";
 const DEFAULT_PREVIEW_SIZE = 520;
 const MIN_PREVIEW_SIZE = 320;
 const MAX_PREVIEW_SIZE = 860;
+const DEFAULT_RUN_SIDEBAR_SIZE = 320;
+const MIN_RUN_SIDEBAR_SIZE = 240;
+const MAX_RUN_SIDEBAR_SIZE = 520;
+const RUN_NAV_HOTKEYS = [
+  "meta+1",
+  "meta+2",
+  "meta+3",
+  "meta+4",
+  "meta+5",
+  "meta+6",
+  "meta+7",
+  "meta+8",
+  "meta+9",
+];
+const RUN_SIDEBAR_HOTKEY = "meta+b";
 
 type Repository = {
   id: number;
@@ -39,6 +62,7 @@ type Run = {
   branchName?: string | null;
   pullRequestUrl?: string | null;
   pullRequestNumber?: number | null;
+  reviewSubmittedAt?: Date | string | number | null;
   error?: string | null;
   events?: {
     id: string;
@@ -65,7 +89,7 @@ type Run = {
 
 function ShortcutBadge({ children }: { children: string }) {
   return (
-    <kbd className="ml-1 inline-flex h-5 min-w-5 items-center justify-center bg-black/10 px-1 font-mono text-xs leading-none">
+    <kbd className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-[4px] bg-grayscale-11 px-1 font-mono text-xs leading-none text-grayscale-1">
       {children}
     </kbd>
   );
@@ -80,6 +104,7 @@ export default function ProjectWorkspace({ mode }: { mode: WorkspaceMode }) {
 }
 
 function ProjectView({ mode }: { mode: WorkspaceMode }) {
+  const router = useRouter();
   const { projectId, runId } = useParams<{
     projectId: string;
     runId?: string;
@@ -126,18 +151,62 @@ function ProjectView({ mode }: { mode: WorkspaceMode }) {
     currentRunIndex >= 0 ? runs[currentRunIndex + 1] : undefined;
   const nextRun = currentRunIndex > 0 ? runs[currentRunIndex - 1] : undefined;
   const activeStep = getActiveSetupStep(project?.status, agent?.status);
+  const newRunHref = `/app/projects/${projectId}/runs/new`;
+  const projectRootRedirectHref =
+    mode === "overview" &&
+    !isLoading &&
+    project?.status === "ready" &&
+    agent?.status === "ready"
+      ? (getLatestHumanInputHref(projectId, runs) ?? newRunHref)
+      : undefined;
+
+  useEffect(() => {
+    if (projectRootRedirectHref) {
+      router.replace(projectRootRedirectHref);
+    }
+  }, [projectRootRedirectHref, router]);
+
+  if (project && activeStep < 5) {
+    return (
+      <SetupWizardShell activeStep={activeStep}>
+        {project.status === "connecting_github" ? (
+          <SetupStatus
+            title="Connect GitHub"
+            message="Complete the GitHub App installation to continue."
+          />
+        ) : project.status === "selecting_repo" ? (
+          <RepositoryPicker
+            projectId={project.id}
+            token={user?.refresh_token}
+          />
+        ) : (
+          <AgentSetup
+            agent={agent}
+            projectId={project.id}
+            projectStatus={project.status}
+            token={user?.refresh_token}
+          />
+        )}
+      </SetupWizardShell>
+    );
+  }
 
   return (
     <main
       className={
-        mode === "run"
+        mode === "run" || mode === "new-run"
           ? "flex h-dvh min-h-0 flex-col overflow-hidden"
           : "flex min-h-full flex-col"
       }
     >
-      {mode !== "new-run" ? (
+      {project ? (
         <ProjectHeader
           project={project}
+          newRunHref={
+            project.status === "ready" && agent?.status === "ready"
+              ? newRunHref
+              : undefined
+          }
           previousHref={
             previousRun ? getRunHref(projectId, previousRun.id) : undefined
           }
@@ -155,40 +224,79 @@ function ProjectView({ mode }: { mode: WorkspaceMode }) {
         <p className="text-sm text-grayscale-10">Project not found.</p>
       ) : null}
 
-      {project && activeStep < 5 ? (
-        <SetupSteps activeStep={activeStep} />
-      ) : null}
-
-      {project?.status === "selecting_repo" ? (
-        <RepositoryPicker projectId={project.id} token={user?.refresh_token} />
-      ) : null}
-
-      {project &&
-      project.status !== "selecting_repo" &&
-      agent?.status !== "ready" ? (
-        <AgentSetup
-          agent={agent}
-          projectId={project.id}
-          projectStatus={project.status}
-          token={user?.refresh_token}
-        />
-      ) : null}
-
       {project?.status === "ready" && agent?.status === "ready" ? (
-        <ReadyProject
-          mode={mode}
-          projectId={project.id}
-          run={currentRun}
-          runs={runs}
-          token={user?.refresh_token}
-        />
+        projectRootRedirectHref ? (
+          <p className="p-4 text-sm text-grayscale-10">Opening project...</p>
+        ) : (
+          <ReadyProject
+            mode={mode}
+            projectId={project.id}
+            run={currentRun}
+            runs={runs}
+            token={user?.refresh_token}
+          />
+        )
       ) : null}
     </main>
   );
 }
 
+function SetupWizardShell({
+  activeStep,
+  children,
+}: {
+  activeStep: number;
+  children: ReactNode;
+}) {
+  return (
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden p-4">
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <DitheredWaves
+          height="100%"
+          colors={[
+            "#fcfcfd",
+            "#f9f9fb",
+            "#f0f0f3",
+            "#e8e8ec",
+            "#e0e1e6",
+            "#d9d9e0",
+            "#cdced6",
+            "#b9bbc6",
+            "#8b8d98",
+          ]}
+        />
+      </div>
+      <div className="relative z-10 flex w-full max-w-xl flex-col rounded-[8px] border border-grayscale-4 bg-white">
+        <CornerCubes
+          placement="outside"
+          spacing={3}
+          translate={12}
+          size={8}
+          color="var(--color-grayscale-6)"
+          className="rounded-[2px]"
+          active={true}
+        />
+        <div className="flex flex-col gap-4 p-3">
+          <SetupSteps activeStep={activeStep} />
+          {children}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function SetupStatus({ title, message }: { title: string; message: string }) {
+  return (
+    <section className="flex flex-col gap-1">
+      <h2 className="text-sm font-medium text-grayscale-12">{title}</h2>
+      <p className="text-xs text-grayscale-10">{message}</p>
+    </section>
+  );
+}
+
 function ProjectHeader({
   project,
+  newRunHref,
   previousHref,
   nextHref,
 }: {
@@ -198,13 +306,14 @@ function ProjectHeader({
     githubRepositoryUrl?: string | null;
     branch?: string | null;
   };
+  newRunHref?: string;
   previousHref?: string;
   nextHref?: string;
 }) {
   const router = useRouter();
 
   useHotkeys(
-    "left",
+    "k",
     () => {
       if (previousHref) {
         router.push(previousHref);
@@ -214,7 +323,7 @@ function ProjectHeader({
   );
 
   useHotkeys(
-    "right",
+    "l",
     () => {
       if (nextHref) {
         router.push(nextHref);
@@ -247,8 +356,9 @@ function ProjectHeader({
         <p className="text-xs text-grayscale-10">{branch}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <NavButton href={previousHref} label="Previous" shortcut="←" />
-        <NavButton href={nextHref} label="Next" shortcut="→" />
+        <NavButton href={newRunHref} label="New run" shortcut="N" />
+        <NavButton href={previousHref} label="Previous" shortcut="K" />
+        <NavButton href={nextHref} label="Next" shortcut="L" />
       </div>
     </header>
   );
@@ -267,7 +377,9 @@ function NavButton({
     <Button
       type="button"
       disabled={!href}
-      className={!href ? "opacity-40 hover:scale-100" : undefined}
+      className={["py-1.5", !href ? "opacity-40 hover:scale-100" : ""].join(
+        " ",
+      )}
     >
       {label}
       <ShortcutBadge>{shortcut}</ShortcutBadge>
@@ -385,6 +497,16 @@ function getNextHumanInputHref(
   return nextRun ? getRunHref(projectId, nextRun.id) : undefined;
 }
 
+function getLatestHumanInputHref(projectId: string, runs: Run[]) {
+  const latestRun = runs.find(
+    (run) =>
+      run.status === "ready_for_review" &&
+      (run.codeChanges ?? []).some((change) => !isChangeResolved(change)),
+  );
+
+  return latestRun ? getRunHref(projectId, latestRun.id) : undefined;
+}
+
 function RepositoryPicker({
   projectId,
   token,
@@ -392,10 +514,12 @@ function RepositoryPicker({
   projectId: string;
   token?: string;
 }) {
+  const router = useRouter();
+  const repositorySelectRef = useRef<HTMLSelectElement | null>(null);
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<number>();
   const [error, setError] = useState<string>();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(() => Boolean(token));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -403,7 +527,6 @@ function RepositoryPicker({
       return;
     }
 
-    setIsLoading(true);
     fetch(`/api/projects/${projectId}/repositories`, {
       headers: {
         authorization: `Bearer ${token}`,
@@ -430,6 +553,12 @@ function RepositoryPicker({
       })
       .finally(() => setIsLoading(false));
   }, [projectId, token]);
+
+  useEffect(() => {
+    if (repositories.length > 0) {
+      repositorySelectRef.current?.focus();
+    }
+  }, [repositories.length]);
 
   const saveRepository = async () => {
     if (!token || !selectedRepositoryId || isSubmitting) {
@@ -462,7 +591,7 @@ function RepositoryPicker({
   };
 
   useHotkeys(
-    "c",
+    "n",
     () => {
       void saveRepository();
     },
@@ -473,16 +602,17 @@ function RepositoryPicker({
   );
 
   return (
-    <section className="flex max-w-xl flex-col gap-3 border border-grayscale-4 bg-white p-3">
+    <section className="flex flex-col gap-3">
       <h2 className="text-sm font-medium text-grayscale-12">
         Select repository
       </h2>
       {isLoading ? (
-        <p className="text-sm text-grayscale-10">Loading repos...</p>
+        <p className="text-xs text-grayscale-10">Loading repos...</p>
       ) : null}
       {repositories.length > 0 ? (
         <select
-          className="bg-grayscale-2 p-2 text-sm text-grayscale-12"
+          ref={repositorySelectRef}
+          className="rounded-[8px] bg-grayscale-2 px-2 py-1.5 text-xs text-grayscale-12 outline-none"
           value={selectedRepositoryId ?? ""}
           onChange={(event) =>
             setSelectedRepositoryId(Number(event.target.value))
@@ -497,7 +627,14 @@ function RepositoryPicker({
         </select>
       ) : null}
       {error ? <p className="text-xs text-grayscale-10">{error}</p> : null}
-      <div>
+      <div className="flex justify-between">
+        <Button
+          type="button"
+          disabled={isSubmitting}
+          onClick={() => router.back()}
+        >
+          Previous
+        </Button>
         <Button
           type="button"
           disabled={!selectedRepositoryId || isSubmitting}
@@ -505,8 +642,8 @@ function RepositoryPicker({
             void saveRepository();
           }}
         >
-          {isSubmitting ? "Saving..." : "Connect Codex"}
-          <ShortcutBadge>C</ShortcutBadge>
+          {isSubmitting ? "Next..." : "Next"}
+          <ShortcutBadge>N</ShortcutBadge>
         </Button>
       </div>
     </section>
@@ -579,10 +716,10 @@ function AgentSetup({
   );
 
   return (
-    <section className="flex max-w-xl flex-col gap-3 border border-grayscale-4 bg-white p-3">
+    <section className="flex flex-col gap-3">
       <div>
         <h2 className="text-sm font-medium text-grayscale-12">Codex setup</h2>
-        <p className="text-sm text-grayscale-10">{statusMessage}</p>
+        <p className="text-xs text-grayscale-10">{statusMessage}</p>
       </div>
       {agent?.deviceAuthUrl && agent.deviceAuthCode ? (
         <div className="flex flex-col gap-2">
@@ -590,11 +727,11 @@ function AgentSetup({
             href={agent.deviceAuthUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-sm text-accent-11"
+            className="text-xs text-accent-11"
           >
             Open Codex device login
           </a>
-          <p className="font-mono text-lg text-grayscale-12">
+          <p className="font-mono text-base text-grayscale-12">
             {agent.deviceAuthCode}
           </p>
         </div>
@@ -604,7 +741,7 @@ function AgentSetup({
       ) : null}
       {error ? <p className="text-xs text-grayscale-10">{error}</p> : null}
       {canRetry ? (
-        <div>
+        <div className="flex justify-end">
           <Button
             type="button"
             disabled={isStarting}
@@ -713,7 +850,7 @@ function PromptBox({
 
   return (
     <form
-      className="relative flex min-h-dvh w-full flex-col items-center justify-center gap-4 overflow-hidden px-4 md:px-0"
+      className="relative flex min-h-0 flex-1 w-full flex-col items-center justify-center gap-4 overflow-hidden px-4 md:px-0"
       onSubmit={(event) => {
         event.preventDefault();
         void submitRun();
@@ -797,15 +934,20 @@ function RunReview({
   token?: string;
 }) {
   const router = useRouter();
-  const changes = run.codeChanges ?? [];
+  const changes = useMemo(() => run.codeChanges ?? [], [run.codeChanges]);
   const newRunHref = `/app/projects/${projectId}/runs/new`;
   const [isPreviewCollapsed, setIsPreviewCollapsed] = useState(false);
   const [previewSize, setPreviewSize] = useState(DEFAULT_PREVIEW_SIZE);
+  const [isRunSidebarCollapsed, setIsRunSidebarCollapsed] = useState(false);
+  const [runSidebarSize, setRunSidebarSize] = useState(
+    DEFAULT_RUN_SIDEBAR_SIZE,
+  );
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>(
     {},
   );
   const [pendingChangeId, setPendingChangeId] = useState<string>();
   const [reviewError, setReviewError] = useState<string>();
+  const finalizingRunIdRef = useRef<string | undefined>(undefined);
   const commentRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const events = useMemo(
     () =>
@@ -817,114 +959,190 @@ function RunReview({
   const [selectedChangeId, setSelectedChangeId] = useState<string>();
   const selectedChange =
     changes.find((change) => change.id === selectedChangeId) ?? changes[0];
+  const timelineItems = useMemo(
+    () => buildUnifiedTimelineItems(changes, events),
+    [changes, events],
+  );
   const previewUrl =
     run.previewBaseUrl && selectedChange?.previewPath
       ? `${run.previewBaseUrl}${selectedChange.previewPath}`
       : run.previewBaseUrl;
+  const selectedPreviewPath = selectedChange?.previewPath ?? "/";
   const togglePreview = () => setIsPreviewCollapsed((collapsed) => !collapsed);
+  const toggleRunSidebar = useCallback(() => {
+    setIsRunSidebarCollapsed((collapsed) => !collapsed);
+  }, []);
   const selectedChangeIndex = selectedChange
     ? changes.findIndex((change) => change.id === selectedChange.id)
     : -1;
   const resolvedChanges = changes.filter(isChangeResolved).length;
-  const focusChange = (changeId?: string) => {
+  const isReviewFullyResolved =
+    changes.length > 0 && resolvedChanges === changes.length;
+  const focusChange = useCallback((changeId?: string) => {
     if (!changeId) {
       return;
     }
 
     setSelectedChangeId(changeId);
-    window.setTimeout(() => commentRefs.current[changeId]?.focus(), 0);
-  };
-  const focusNextChange = (fromChangeId: string) => {
-    const fromIndex = changes.findIndex((change) => change.id === fromChangeId);
-    const orderedChanges = [
-      ...changes.slice(fromIndex + 1),
-      ...changes.slice(0, Math.max(fromIndex, 0)),
-    ];
-    const nextUnresolved = orderedChanges.find(
-      (change) => !isChangeResolved(change),
-    );
-    const fallback = changes[fromIndex + 1] ?? changes[fromIndex - 1];
+    window.setTimeout(() => {
+      const comment = commentRefs.current[changeId];
 
-    focusChange(nextUnresolved?.id ?? fallback?.id);
-  };
-  const reviewChange = async (
-    change: NonNullable<Run["codeChanges"]>[number],
-    action: "commented" | "reviewed",
-  ) => {
-    if (!token || pendingChangeId) {
-      return;
-    }
-
-    const comment = (commentDrafts[change.id] ?? change.comment ?? "").trim();
-
-    if (action === "commented" && !comment) {
-      return;
-    }
-
-    setPendingChangeId(change.id);
-    setReviewError(undefined);
-
-    try {
-      const now = new Date();
-      await db.transact(
-        db.tx.codeChanges[change.id].update(
-          action === "reviewed"
-            ? {
-                status: "reviewed",
-                comment: "",
-                reviewedAt: now,
-              }
-            : {
-                status: "commented",
-                comment,
-                commentedAt: now,
-              },
-        ),
+      comment?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+      comment?.focus({ preventScroll: true });
+    }, 0);
+  }, []);
+  const focusNextChange = useCallback(
+    (fromChangeId: string) => {
+      const fromIndex = changes.findIndex(
+        (change) => change.id === fromChangeId,
       );
-
-      const response = await fetch(
-        `/api/projects/${projectId}/runs/${run.id}/changes/${change.id}/review`,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ action, comment }),
-        },
+      const orderedChanges = [
+        ...changes.slice(fromIndex + 1),
+        ...changes.slice(0, Math.max(fromIndex, 0)),
+      ];
+      const nextUnresolved = orderedChanges.find(
+        (change) => !isChangeResolved(change),
       );
-      const body = (await response.json()) as {
-        message?: string;
-        submitted?: boolean;
-      };
+      const fallback = changes[fromIndex + 1] ?? changes[fromIndex - 1];
 
-      if (!response.ok) {
-        throw new Error(body.message ?? "Failed to save review");
+      focusChange(nextUnresolved?.id ?? fallback?.id);
+    },
+    [changes, focusChange],
+  );
+  const reviewChange = useCallback(
+    async (
+      change: NonNullable<Run["codeChanges"]>[number],
+      action: "commented" | "reviewed",
+    ) => {
+      if (!token || pendingChangeId) {
+        return;
       }
 
-      if (body.submitted) {
-        router.push(
-          getNextHumanInputHref(projectId, runs, run.id) ?? newRunHref,
+      const comment = (commentDrafts[change.id] ?? change.comment ?? "").trim();
+
+      if (action === "commented" && !comment) {
+        return;
+      }
+
+      setPendingChangeId(change.id);
+      setReviewError(undefined);
+
+      try {
+        const now = new Date();
+        await db.transact(
+          db.tx.codeChanges[change.id].update(
+            action === "reviewed"
+              ? {
+                  status: "reviewed",
+                  comment: "",
+                  reviewedAt: now,
+                }
+              : {
+                  status: "commented",
+                  comment,
+                  commentedAt: now,
+                },
+          ),
         );
-      } else {
-        focusNextChange(change.id);
+
+        const response = await fetch(
+          `/api/projects/${projectId}/runs/${run.id}/changes/${change.id}/review`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ action, comment }),
+          },
+        );
+        const body = (await response.json()) as {
+          message?: string;
+          submitted?: boolean;
+        };
+
+        if (!response.ok) {
+          throw new Error(body.message ?? "Failed to save review");
+        }
+
+        if (body.submitted) {
+          router.push(
+            getNextHumanInputHref(projectId, runs, run.id) ?? newRunHref,
+          );
+        } else {
+          focusNextChange(change.id);
+        }
+      } catch (error) {
+        await db.transact(
+          db.tx.codeChanges[change.id].update({
+            status: change.status ?? "pending",
+            comment: change.comment ?? "",
+            reviewedAt: change.reviewedAt ?? undefined,
+            commentedAt: change.commentedAt ?? undefined,
+          }),
+        );
+        setReviewError(
+          error instanceof Error ? error.message : "Failed to save review",
+        );
+      } finally {
+        setPendingChangeId(undefined);
       }
-    } catch (error) {
-      await db.transact(
-        db.tx.codeChanges[change.id].update({
-          status: change.status ?? "pending",
-          comment: change.comment ?? "",
-          reviewedAt: change.reviewedAt ?? undefined,
-          commentedAt: change.commentedAt ?? undefined,
-        }),
-      );
-      setReviewError(
-        error instanceof Error ? error.message : "Failed to save review",
-      );
-    } finally {
-      setPendingChangeId(undefined);
+    },
+    [
+      commentDrafts,
+      focusNextChange,
+      newRunHref,
+      pendingChangeId,
+      projectId,
+      router,
+      run.id,
+      runs,
+      token,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      !token ||
+      run.status !== "ready_for_review" ||
+      run.reviewSubmittedAt ||
+      !isReviewFullyResolved ||
+      finalizingRunIdRef.current === run.id ||
+      pendingChangeId
+    ) {
+      return;
     }
-  };
+
+    const finalChange =
+      changes.find(
+        (change) => change.status === "commented" && change.comment?.trim(),
+      ) ?? changes.find(isChangeResolved);
+
+    if (!finalChange) {
+      return;
+    }
+
+    finalizingRunIdRef.current = run.id;
+    queueMicrotask(() => {
+      void reviewChange(
+        finalChange,
+        finalChange.status === "commented" ? "commented" : "reviewed",
+      );
+    });
+  }, [
+    changes,
+    isReviewFullyResolved,
+    pendingChangeId,
+    reviewChange,
+    run.id,
+    run.reviewSubmittedAt,
+    run.status,
+    token,
+  ]);
 
   useHotkeys(
     "p",
@@ -976,6 +1194,76 @@ function RunReview({
     { enabled: changes.length > 1, preventDefault: true },
   );
 
+  useHotkeys(
+    RUN_NAV_HOTKEYS,
+    (event) => {
+      const index = Number(event.key) - 1;
+      const targetRun = runs[index];
+
+      if (targetRun) {
+        router.push(getRunHref(projectId, targetRun.id));
+      }
+    },
+    {
+      enabled: runs.length > 0,
+      enableOnFormTags: true,
+      preventDefault: true,
+    },
+    [projectId, router, runs],
+  );
+
+  useHotkeys(
+    RUN_SIDEBAR_HOTKEY,
+    () => {
+      toggleRunSidebar();
+    },
+    {
+      enableOnFormTags: true,
+      preventDefault: true,
+    },
+    [toggleRunSidebar],
+  );
+
+  const startRunSidebarResize = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    if (isRunSidebarCollapsed) {
+      return;
+    }
+
+    event.preventDefault();
+    const separator = event.currentTarget;
+    const pointerId = event.pointerId;
+    separator.setPointerCapture(pointerId);
+    const startX = event.clientX;
+    const startSize = runSidebarSize;
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      const nextSize = Math.min(
+        MAX_RUN_SIDEBAR_SIZE,
+        Math.max(
+          MIN_RUN_SIDEBAR_SIZE,
+          startSize + (moveEvent.clientX - startX),
+        ),
+      );
+      setRunSidebarSize(nextSize);
+    };
+
+    const stopResize = () => {
+      if (separator.hasPointerCapture(pointerId)) {
+        separator.releasePointerCapture(pointerId);
+      }
+
+      separator.removeEventListener("pointermove", handleMove);
+      separator.removeEventListener("pointerup", stopResize);
+      separator.removeEventListener("pointercancel", stopResize);
+    };
+
+    separator.addEventListener("pointermove", handleMove);
+    separator.addEventListener("pointerup", stopResize);
+    separator.addEventListener("pointercancel", stopResize);
+  };
+
   const startPreviewResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (isPreviewCollapsed) {
       return;
@@ -1011,77 +1299,94 @@ function RunReview({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden border border-grayscale-4 bg-white md:flex-row">
-      <aside className="hidden w-72 shrink-0 flex-col gap-3 overflow-y-auto border-r border-grayscale-4 p-3 md:flex">
-        <div>
-          <h2 className="text-sm font-medium text-grayscale-12">Run</h2>
-          <p className="text-xs text-grayscale-10">
-            {run.status}
-            {events.length > 0 ? ` · ${events.length} events` : ""}
-          </p>
-        </div>
-        {run.responseText ? (
-          <p className="text-sm text-grayscale-11">{run.responseText}</p>
-        ) : null}
-        {run.pullRequestUrl ? (
-          <a
-            href={run.pullRequestUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm text-accent-11"
-          >
-            Pull request #{run.pullRequestNumber ?? ""}
-          </a>
-        ) : run.branchName ? (
-          <p className="text-xs text-grayscale-10">{run.branchName}</p>
-        ) : null}
-        {run.error ? (
-          <p className="text-sm text-grayscale-10">{run.error}</p>
-        ) : null}
-        <div>
-          <h3 className="mb-2 text-xs font-medium text-grayscale-12">
-            Changes
-          </h3>
-          <div className="flex flex-col divide-y divide-grayscale-4 border border-grayscale-4">
-            {changes.length > 0 ? (
-              changes.map((change) => (
-                <button
-                  key={change.id}
-                  type="button"
-                  className={[
-                    "p-2 text-left text-sm text-grayscale-12 transition-colors hover:bg-grayscale-2",
-                    selectedChange?.id === change.id ? "bg-grayscale-2" : "",
-                  ].join(" ")}
-                  onClick={() => focusChange(change.id)}
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate">{change.title}</span>
-                    <span className="shrink-0 text-[10px] uppercase text-grayscale-10">
-                      {getChangeStatusLabel(change)}
-                    </span>
-                  </span>
-                  {change.summary ? (
-                    <span className="block text-xs text-grayscale-10">
-                      {change.summary}
-                    </span>
-                  ) : null}
-                </button>
-              ))
-            ) : (
-              <p className="p-2 text-xs text-grayscale-10">No changes yet.</p>
-            )}
+      <aside
+        className={cn(
+          "hidden shrink-0 overflow-hidden border-r border-grayscale-4 bg-white transition-[width] duration-200 ease-out md:flex md:flex-col",
+          isRunSidebarCollapsed && "border-r-0",
+        )}
+        style={{ width: isRunSidebarCollapsed ? 0 : runSidebarSize }}
+      >
+        <div
+          className={cn(
+            "flex h-full min-w-60 flex-col transition-opacity duration-150",
+            isRunSidebarCollapsed ? "opacity-0" : "opacity-100",
+          )}
+        >
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-grayscale-4 p-3">
+            <div className="min-w-0">
+              <h2 className="text-sm font-medium text-grayscale-12">Runs</h2>
+              <p className="text-xs text-grayscale-10">
+                {runs.length} total · ⌘1-9 opens · ⌘B toggles
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Collapse runs sidebar"
+              className="shrink-0 bg-grayscale-2 px-2 py-1 text-xs text-grayscale-12 hover:bg-grayscale-3"
+              onClick={toggleRunSidebar}
+            >
+              ←<ShortcutBadge>⌘B</ShortcutBadge>
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <RunNavigator
+              currentRunId={run.id}
+              projectId={projectId}
+              runs={runs}
+            />
           </div>
         </div>
       </aside>
+      <button
+        type="button"
+        aria-label="Resize runs sidebar"
+        onPointerDown={startRunSidebarResize}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            setRunSidebarSize((size) =>
+              Math.max(MIN_RUN_SIDEBAR_SIZE, size - 24),
+            );
+          }
+
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            setRunSidebarSize((size) =>
+              Math.min(MAX_RUN_SIDEBAR_SIZE, size + 24),
+            );
+          }
+        }}
+        className={cn(
+          "hidden shrink-0 cursor-col-resize bg-grayscale-4 transition-[background-color,opacity,width] duration-200 hover:bg-accent-8 md:block",
+          isRunSidebarCollapsed ? "w-0 opacity-0" : "w-px opacity-100",
+        )}
+      />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-grayscale-1">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-grayscale-4 bg-white p-3">
-          <div>
-            <h2 className="text-sm font-medium text-grayscale-12">
-              Review timeline
-            </h2>
-            <p className="text-xs text-grayscale-10">
-              {resolvedChanges}/{changes.length} changes resolved
-              {events.length > 0 ? ` · ${events.length} events` : ""}
-            </p>
+          <div className="flex min-w-0 items-center gap-2">
+            {isRunSidebarCollapsed ? (
+              <button
+                type="button"
+                className="shrink-0 bg-grayscale-2 px-2 py-1 text-xs text-grayscale-12 hover:bg-grayscale-3"
+                onClick={toggleRunSidebar}
+              >
+                Runs
+                <ShortcutBadge>⌘B</ShortcutBadge>
+              </button>
+            ) : null}
+            <div className="min-w-0">
+              <h2 className="text-sm font-medium text-grayscale-12">
+                Review timeline
+              </h2>
+              <p className="text-xs text-grayscale-10">
+                {resolvedChanges}/{changes.length} changes resolved
+                {events.length > 0 ? ` · ${events.length} events` : ""}
+                {isReviewFullyResolved && run.status === "ready_for_review"
+                  ? " · submitting"
+                  : ""}
+              </p>
+            </div>
           </div>
           {isPreviewCollapsed ? (
             <button
@@ -1101,35 +1406,44 @@ function RunReview({
                 {reviewError}
               </p>
             ) : null}
-            {changes.length > 0 ? (
-              <div className="flex flex-col">
-                {changes.map((change) => (
-                  <ChangeReviewCard
-                    change={change}
-                    commentDraft={
-                      commentDrafts[change.id] ?? change.comment ?? ""
-                    }
-                    isPending={pendingChangeId === change.id}
-                    isSelected={selectedChange?.id === change.id}
-                    key={change.id}
-                    onCommentDraftChange={(value) =>
-                      setCommentDrafts((drafts) => ({
-                        ...drafts,
-                        [change.id]: value,
-                      }))
-                    }
-                    onFocus={() => setSelectedChangeId(change.id)}
-                    onReview={() => {
-                      void reviewChange(change, "reviewed");
-                    }}
-                    onSubmitComment={() => {
-                      void reviewChange(change, "commented");
-                    }}
-                    setCommentRef={(node) => {
-                      commentRefs.current[change.id] = node;
-                    }}
-                  />
-                ))}
+            {timelineItems.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {timelineItems.map((item) =>
+                  item.kind === "change" ? (
+                    <ChangeReviewCard
+                      change={item.change}
+                      commentDraft={
+                        commentDrafts[item.change.id] ??
+                        item.change.comment ??
+                        ""
+                      }
+                      isPending={pendingChangeId === item.change.id}
+                      isSelected={selectedChange?.id === item.change.id}
+                      key={`change:${item.change.id}`}
+                      onCommentDraftChange={(value) =>
+                        setCommentDrafts((drafts) => ({
+                          ...drafts,
+                          [item.change.id]: value,
+                        }))
+                      }
+                      onFocus={() => setSelectedChangeId(item.change.id)}
+                      onReview={() => {
+                        void reviewChange(item.change, "reviewed");
+                      }}
+                      onSubmitComment={() => {
+                        void reviewChange(item.change, "commented");
+                      }}
+                      setCommentRef={(node) => {
+                        commentRefs.current[item.change.id] = node;
+                      }}
+                    />
+                  ) : (
+                    <TimelineEvent
+                      event={item.event}
+                      key={`event:${item.event.id}`}
+                    />
+                  ),
+                )}
               </div>
             ) : (
               <div className="border border-grayscale-4 bg-white p-3">
@@ -1139,16 +1453,6 @@ function RunReview({
                 </p>
               </div>
             )}
-            {events.length > 0 ? (
-              <details className="border border-grayscale-4 bg-white">
-                <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-grayscale-12">
-                  Run events
-                </summary>
-                <div className="border-t border-grayscale-4 px-3 py-2">
-                  <Timeline events={events} />
-                </div>
-              </details>
-            ) : null}
           </div>
         </div>
       </main>
@@ -1185,11 +1489,11 @@ function RunReview({
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-grayscale-4 p-2">
             <div className="min-w-0">
               <h2 className="truncate text-xs font-medium text-grayscale-12">
-                Preview
+                {selectedPreviewPath}
               </h2>
-              {run.previewBaseUrl ? (
+              {previewUrl ? (
                 <p className="truncate text-xs text-grayscale-10">
-                  {run.previewBaseUrl}
+                  {previewUrl}
                 </p>
               ) : null}
             </div>
@@ -1232,6 +1536,97 @@ function RunReview({
   );
 }
 
+function RunNavigator({
+  currentRunId,
+  projectId,
+  runs,
+}: {
+  currentRunId: string;
+  projectId: string;
+  runs: Run[];
+}) {
+  return (
+    <div className="flex flex-col divide-y divide-grayscale-4">
+      {runs.length > 0 ? (
+        runs.map((item, index) => {
+          const isCurrent = item.id === currentRunId;
+          const shortcut = index < 9 ? `⌘${index + 1}` : undefined;
+
+          return (
+            <Link
+              key={item.id}
+              href={getRunHref(projectId, item.id)}
+              className={cn(
+                "flex flex-col gap-1 px-3 py-2 text-sm text-grayscale-12 transition-colors hover:bg-grayscale-2",
+                isCurrent && "bg-grayscale-2",
+              )}
+            >
+              <span className="flex min-w-0 items-center justify-between gap-2">
+                <span className="min-w-0 truncate">
+                  {item.prompt ?? `Run ${item.id.slice(0, 8)}`}
+                </span>
+                {shortcut ? (
+                  <span className="shrink-0 font-mono text-[10px] text-grayscale-10">
+                    {shortcut}
+                  </span>
+                ) : null}
+              </span>
+              <span className="flex items-center justify-between gap-2 text-xs">
+                <span className="flex min-w-0 items-center gap-1.5 text-grayscale-10">
+                  <span
+                    className={cn(
+                      "h-2 w-2 shrink-0 rounded-full",
+                      getRunStatusDotClass(item.status),
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span className="truncate">
+                    {formatRunStatus(item.status)}
+                  </span>
+                </span>
+                <span className="shrink-0 text-tiny text-grayscale-10">
+                  {item.codeChanges?.length ?? 0} changes ·{" "}
+                  {item.events?.length ?? 0} events
+                </span>
+              </span>
+            </Link>
+          );
+        })
+      ) : (
+        <p className="p-3 text-xs text-grayscale-10">No runs yet.</p>
+      )}
+    </div>
+  );
+}
+
+function formatRunStatus(status?: string | null) {
+  return status?.replaceAll("_", " ") ?? "unknown";
+}
+
+function getRunStatusDotClass(status?: string | null) {
+  if (status === "failed" || status === "error") {
+    return "bg-red-500";
+  }
+
+  if (status === "completed" || status === "review_complete") {
+    return "bg-green-500";
+  }
+
+  if (status === "ready_for_review") {
+    return "bg-accent-9";
+  }
+
+  if (
+    status === "queued" ||
+    status === "running" ||
+    status === "feedback_queued"
+  ) {
+    return "bg-amber-500";
+  }
+
+  return "bg-grayscale-7";
+}
+
 function ChangeReviewCard({
   change,
   commentDraft,
@@ -1258,29 +1653,13 @@ function ChangeReviewCard({
   return (
     <article
       className={[
-        "relative flex gap-3 py-2 before:absolute before:top-10 before:bottom-[-0.5rem] before:left-3.5 before:w-px before:bg-grayscale-4 last:before:hidden",
+        "border bg-white",
         isSelected ? "scroll-mt-4" : "",
+        isSelected ? "border-accent-7" : "border-grayscale-4",
       ].join(" ")}
       onFocus={onFocus}
     >
-      <div
-        className={[
-          "relative z-10 flex size-7 shrink-0 items-center justify-center font-mono text-[10px] font-semibold",
-          resolved
-            ? "bg-emerald-50 text-emerald-700"
-            : isSelected
-              ? "bg-accent-3 text-accent-11"
-              : "bg-grayscale-3 text-grayscale-11",
-        ].join(" ")}
-      >
-        CH
-      </div>
-      <div
-        className={[
-          "min-w-0 flex-1 border bg-white",
-          isSelected ? "border-accent-7" : "border-grayscale-4",
-        ].join(" ")}
-      >
+      <div className="min-w-0">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-grayscale-4 px-3 py-2">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -1289,6 +1668,9 @@ function ChangeReviewCard({
               </h3>
               <span className="bg-grayscale-2 px-1.5 py-0.5 text-[11px] uppercase text-grayscale-10">
                 {getChangeStatusLabel(change)}
+              </span>
+              <span className="bg-emerald-50 px-1.5 py-0.5 text-[11px] uppercase text-emerald-700">
+                change
               </span>
             </div>
             {change.summary ? (
@@ -1434,17 +1816,63 @@ function formatChangeFiles(files: unknown) {
   return fileNames.length > 0 ? fileNames.join(", ") : "No files listed";
 }
 
-function Timeline({ events }: { events: NonNullable<Run["events"]> }) {
-  return (
-    <div className="flex flex-col">
-      {events.map((event) => (
-        <TimelineEvent event={event} key={event.id} />
-      ))}
-    </div>
-  );
+type RunEvent = NonNullable<Run["events"]>[number];
+type CodeChange = NonNullable<Run["codeChanges"]>[number];
+type UnifiedTimelineItem =
+  | { kind: "change"; change: CodeChange; sequence: number }
+  | { kind: "event"; event: RunEvent; sequence: number };
+
+function buildUnifiedTimelineItems(
+  changes: CodeChange[],
+  events: RunEvent[],
+): UnifiedTimelineItem[] {
+  const changesById = new Map(changes.map((change) => [change.id, change]));
+  const renderedChangeIds = new Set<string>();
+  const items: UnifiedTimelineItem[] = [];
+
+  for (const event of events) {
+    if (event.type === "change.ready") {
+      const payload = isRecord(event.payload) ? event.payload : undefined;
+      const changeId = payload ? stringField(payload, "changeId") : undefined;
+      const change = changeId ? changesById.get(changeId) : undefined;
+
+      if (change) {
+        renderedChangeIds.add(change.id);
+        items.push({
+          kind: "change",
+          change,
+          sequence: event.sequence ?? Number.MAX_SAFE_INTEGER,
+        });
+        continue;
+      }
+    }
+
+    if (event.type === "change.reviewed" || event.type === "change.commented") {
+      continue;
+    }
+
+    items.push({
+      kind: "event",
+      event,
+      sequence: event.sequence ?? Number.MAX_SAFE_INTEGER,
+    });
+  }
+
+  changes.forEach((change, index) => {
+    if (renderedChangeIds.has(change.id)) {
+      return;
+    }
+
+    items.push({
+      kind: "change",
+      change,
+      sequence: Number.MAX_SAFE_INTEGER - changes.length + index,
+    });
+  });
+
+  return items.sort((first, second) => first.sequence - second.sequence);
 }
 
-type RunEvent = NonNullable<Run["events"]>[number];
 type TimelineTone = "neutral" | "accent" | "success" | "warning" | "danger";
 type TimelineDetail = [label: string, value: number | string | undefined];
 type TimelineEventSummary = {
@@ -1469,54 +1897,52 @@ function TimelineEvent({ event }: { event: RunEvent }) {
   const summary = describeRunEvent(event);
 
   return (
-    <article className="relative flex gap-3 py-2 before:absolute before:top-10 before:bottom-[-0.5rem] before:left-3.5 before:w-px before:bg-grayscale-4 last:before:hidden">
-      <div
-        className={[
-          "relative z-10 flex size-7 shrink-0 items-center justify-center font-mono text-[10px] font-semibold",
-          timelineToneClasses[summary.tone],
-        ].join(" ")}
-      >
-        {summary.glyph}
-      </div>
-      <div className="min-w-0 flex-1 border border-grayscale-4 bg-white">
-        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2 border-b border-grayscale-4 px-3 py-2">
-          <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h3 className="text-sm font-medium text-grayscale-12">
-                {summary.title}
-              </h3>
-              {summary.timestamp ? (
-                <span className="text-[11px] text-grayscale-10">
-                  {summary.timestamp}
-                </span>
-              ) : null}
-            </div>
-            {summary.subtitle ? (
-              <p className="break-words font-mono text-[11px] text-grayscale-10">
-                {summary.subtitle}
-              </p>
+    <article className="border border-grayscale-4 bg-white">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2 border-b border-grayscale-4 px-3 py-2">
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="text-sm font-medium text-grayscale-12">
+              {summary.title}
+            </h3>
+            <span
+              className={[
+                "px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase",
+                timelineToneClasses[summary.tone],
+              ].join(" ")}
+            >
+              {summary.glyph}
+            </span>
+            {summary.timestamp ? (
+              <span className="text-[11px] text-grayscale-10">
+                {summary.timestamp}
+              </span>
             ) : null}
           </div>
-          <span className="shrink-0 font-mono text-[10px] text-grayscale-9">
-            #{event.sequence ?? 0}
-          </span>
-        </div>
-        <div className="flex flex-col gap-2 px-3 py-2">
-          {summary.body ? (
-            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-grayscale-12">
-              {summary.body}
+          {summary.subtitle ? (
+            <p className="break-words font-mono text-[11px] text-grayscale-10">
+              {summary.subtitle}
             </p>
           ) : null}
-          <DetailGrid items={summary.details} />
-          <details className="group bg-grayscale-2">
-            <summary className="cursor-pointer px-2 py-1.5 text-xs font-medium text-grayscale-11">
-              Payload
-            </summary>
-            <pre className="max-h-64 overflow-auto p-2 text-[11px] leading-5 text-grayscale-12">
-              <code>{formatPayload(event.payload ?? event.raw ?? "")}</code>
-            </pre>
-          </details>
         </div>
+        <span className="shrink-0 font-mono text-[10px] text-grayscale-9">
+          #{event.sequence ?? 0}
+        </span>
+      </div>
+      <div className="flex flex-col gap-2 px-3 py-2">
+        {summary.body ? (
+          <p className="whitespace-pre-wrap break-words text-sm leading-6 text-grayscale-12">
+            {summary.body}
+          </p>
+        ) : null}
+        <DetailGrid items={summary.details} />
+        <details className="group bg-grayscale-2">
+          <summary className="cursor-pointer px-2 py-1.5 text-xs font-medium text-grayscale-11">
+            Payload
+          </summary>
+          <pre className="max-h-64 overflow-auto p-2 text-[11px] leading-5 text-grayscale-12">
+            <code>{formatPayload(event.payload ?? event.raw ?? "")}</code>
+          </pre>
+        </details>
       </div>
     </article>
   );

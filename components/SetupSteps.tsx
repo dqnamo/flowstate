@@ -1,27 +1,31 @@
-const steps = ["Project", "GitHub", "Repo", "Codex"];
+const STEP_COUNT = 4;
 
 export default function SetupSteps({ activeStep }: { activeStep: number }) {
+  const currentStep = Math.min(Math.max(activeStep, 1), STEP_COUNT);
+
   return (
-    <div className="grid gap-2 sm:grid-cols-4">
-      {steps.map((step, index) => {
+    <div className="flex items-center gap-2">
+      <span className="sr-only">
+        Setup progress, step {currentStep} of {STEP_COUNT}
+      </span>
+      {Array.from({ length: STEP_COUNT }).map((_, index) => {
         const stepNumber = index + 1;
-        const isDone = stepNumber < activeStep;
-        const isActive = stepNumber === activeStep;
+        const isDone = stepNumber < currentStep;
+        const isActive = stepNumber === currentStep;
 
         return (
           <div
-            key={step}
+            key={stepNumber}
+            aria-hidden="true"
             className={[
-              "border p-2 text-xs",
+              "h-2 flex-1 rounded-full transition-colors",
               isActive
-                ? "border-accent-8 bg-accent-2 text-accent-12"
+                ? "bg-grayscale-12"
                 : isDone
-                  ? "border-grayscale-5 bg-white text-grayscale-12"
-                  : "border-grayscale-4 bg-white text-grayscale-9",
+                  ? "bg-accent-9"
+                  : "bg-grayscale-4",
             ].join(" ")}
-          >
-            <span className="font-medium">{stepNumber}.</span> {step}
-          </div>
+          />
         );
       })}
     </div>

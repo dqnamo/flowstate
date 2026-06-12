@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface DitheredWavesProps {
   colors?: readonly string[];
@@ -139,6 +139,7 @@ export default function DitheredWaves({
 }: DitheredWavesProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorsRef = useRef(colors);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     colorsRef.current = colors;
@@ -201,6 +202,7 @@ export default function DitheredWaves({
 
     const start = performance.now();
     let raf = 0;
+    let hasDrawnFirstFrame = false;
     const render = () => {
       gl.viewport(0, 0, w, h);
       gl.uniform2f(uResolution, w, h);
@@ -220,6 +222,12 @@ export default function DitheredWaves({
         gl.uniform3f(uColorLocs[i], r, g, b);
       }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+      if (!hasDrawnFirstFrame) {
+        hasDrawnFirstFrame = true;
+        setIsReady(true);
+      }
+
       raf = requestAnimationFrame(render);
     };
     render();
@@ -235,8 +243,13 @@ export default function DitheredWaves({
   }, []);
 
   return (
-    <div className="h-full w-full bg-black" style={{ height }}>
-      <canvas ref={canvasRef} className="block h-full w-full" />
+    <div className="h-full w-full" style={{ height }}>
+      <canvas
+        ref={canvasRef}
+        className={`block h-full w-full transition-opacity duration-700 ${
+          isReady ? "opacity-100" : "opacity-0"
+        }`}
+      />
     </div>
   );
 }

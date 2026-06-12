@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import AuthGate from "@/components/AuthGate";
 import { Button } from "@/components/Button";
+import CornerCubes from "@/components/CornerCubes";
+import DitheredWaves from "@/components/DitheredWaves";
 import { Input } from "@/components/Input";
 import SetupSteps from "@/components/SetupSteps";
 import db from "@/lib/db";
@@ -19,10 +21,15 @@ export default function NewProjectPage() {
 function NewProjectForm() {
   const router = useRouter();
   const { user } = db.useAuth();
+  const formRef = useRef<HTMLFormElement | null>(null);
   const nameId = useId();
   const [name, setName] = useState("");
   const [error, setError] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    formRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+  }, []);
 
   const createProject = async () => {
     if (!user || isSubmitting) {
@@ -62,38 +69,78 @@ function NewProjectForm() {
   };
 
   return (
-    <main className="flex min-h-full items-center justify-center p-4">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden p-4">
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <DitheredWaves
+          height="100%"
+          colors={[
+            "#fcfcfd",
+            "#f9f9fb",
+            "#f0f0f3",
+            "#e8e8ec",
+            "#e0e1e6",
+            "#d9d9e0",
+            "#cdced6",
+            "#b9bbc6",
+            "#8b8d98",
+          ]}
+        />
+      </div>
       <form
-        className="flex w-full max-w-md flex-col gap-3 border border-grayscale-4 bg-white p-3"
+        ref={formRef}
+        className="relative z-10 flex w-full max-w-xl flex-col rounded-[8px] border border-grayscale-4 bg-white"
         onSubmit={(event) => {
           event.preventDefault();
           void createProject();
         }}
       >
-        <SetupSteps activeStep={1} />
-        <div>
-          <h1 className="text-lg font-medium text-grayscale-12">New project</h1>
-          <p className="text-xs text-grayscale-10">
-            Name it, then install the GitHub App.
-          </p>
+        <CornerCubes
+          placement="outside"
+          spacing={3}
+          translate={12}
+          size={8}
+          color="var(--color-grayscale-6)"
+          className="rounded-[2px]"
+          active={true}
+        />
+        <div className="flex flex-col gap-4 p-3">
+          <SetupSteps activeStep={1} />
+          <div>
+            <h1 className="text-sm font-medium text-grayscale-12">
+              New project
+            </h1>
+            <p className="text-xs text-grayscale-10">
+              Name it, then connect GitHub.
+            </p>
+          </div>
+          <label
+            htmlFor={nameId}
+            className="flex flex-col gap-1 text-xs text-grayscale-11"
+          >
+            Name
+            <Input
+              id={nameId}
+              required
+              value={name}
+              disabled={isSubmitting}
+              placeholder="Flowstate"
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
         </div>
-        <label
-          htmlFor={nameId}
-          className="flex flex-col gap-1 text-xs text-grayscale-11"
-        >
-          Name
-          <Input
-            id={nameId}
-            required
-            value={name}
+        {error ? (
+          <p className="px-3 text-xs text-grayscale-10">{error}</p>
+        ) : null}
+        <div className="flex justify-between p-3">
+          <Button
+            type="button"
             disabled={isSubmitting}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        {error ? <p className="text-xs text-grayscale-10">{error}</p> : null}
-        <div className="flex justify-end">
+            onClick={() => router.push("/app")}
+          >
+            Previous
+          </Button>
           <Button type="submit" disabled={isSubmitting || !name.trim()}>
-            {isSubmitting ? "Creating..." : "Connect GitHub"}
+            {isSubmitting ? "Next..." : "Next"}
           </Button>
         </div>
       </form>

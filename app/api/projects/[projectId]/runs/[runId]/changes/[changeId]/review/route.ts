@@ -47,6 +47,16 @@ export async function POST(req: Request, context: RouteContext) {
     }
 
     const now = new Date();
+    const updatedChanges = (run.codeChanges ?? []).map((item) =>
+      item.id === changeId
+        ? {
+            ...item,
+            status: action,
+            comment: action === "commented" ? comment : "",
+          }
+        : item,
+    );
+
     await adminDb.transact([
       adminDb.tx.codeChanges[changeId].update(
         action === "reviewed"
@@ -69,9 +79,11 @@ export async function POST(req: Request, context: RouteContext) {
     ]);
 
     const submission = await maybeSubmitReviewFeedback({
+      changes: updatedChanges,
       projectId,
       runId,
       ownerId: user.id,
+      reviewSubmittedAt: run.reviewSubmittedAt,
     });
 
     return NextResponse.json({ ok: true, ...submission });
@@ -91,21 +103,29 @@ export async function POST(req: Request, context: RouteContext) {
 }
 
 async function maybeSubmitReviewFeedback({
+  changes,
   projectId,
   runId,
   ownerId,
+  reviewSubmittedAt,
 }: {
+  changes: {
+    id: string;
+    title: string;
+    summary?: string | null;
+    files?: unknown;
+    status?: string | null;
+    comment?: string | null;
+  }[];
   projectId: string;
   runId: string;
   ownerId: string;
+  reviewSubmittedAt?: Date | string | number | null;
 }) {
-  const run = await getReviewRun(runId, ownerId);
-
-  if (!run || run.reviewSubmittedAt) {
+  if (reviewSubmittedAt) {
     return { submitted: false };
   }
 
-  const changes = run.codeChanges ?? [];
   const allResolved =
     changes.length > 0 &&
     changes.every(
